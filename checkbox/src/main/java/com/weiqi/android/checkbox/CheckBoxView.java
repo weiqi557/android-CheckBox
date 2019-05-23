@@ -169,7 +169,7 @@ public class CheckBoxView extends View implements Checkable {
         mTickPaint.setStrokeWidth(mTickPathStroke);
 
         offSetTickDistance = (float) mWidth / DEFAULT_MIN_WIDTH_HEIGHT < DEFAULT_OFFSET_LENGTH ?
-                DEFAULT_INNER_CIRCLE_COLOR : (float) mWidth / DEFAULT_MIN_WIDTH_HEIGHT;
+                DEFAULT_OFFSET_LENGTH : (float) mWidth / DEFAULT_MIN_WIDTH_HEIGHT;
 
         points[0].set(10 * mWidth / 44, 25 * mHeight / 44);
         points[1].set(19 * mWidth / 44, 14 * mHeight / 44);
