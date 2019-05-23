@@ -8,43 +8,64 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Point;
+import android.support.v4.content.ContextCompat;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
 import android.widget.Checkable;
 
+
 public class CheckBoxView extends View implements Checkable {
+
+    public interface OnCheckedChangeListener {
+        void onCheckedChanged(CheckBoxView view, boolean isChecked);
+    }
+
+    private OnCheckedChangeListener listener;
+
+    public void setOnCheckedChangeListener(OnCheckedChangeListener listener) {
+        this.listener = listener;
+    }
 
     private static final String TAG = "CheckBoxView";
 
     public static final int DEFAULT_INNER_CIRCLE_COLOR = 0xFFFFFFFF;
     public static final int DEFAULT_OUT_CIRCLE_COLOR = 0xFF949495;
-    private static final float DEFAULT_OFFSET_LENGTH = 1;
+    public static final int DEFAULT_CHECK_COLOR = 0xFFF53341;
+    private static final float DEFAULT_OFFSET_LENGTH = 3;
+    private static final int DEFAULT_MIN_WIDTH_HEIGHT = 15;
 
-    private Paint mOutCirclePaint, mInnerCirclePaint, mTickPaint;
-
-    private float mRadius;
     private int mWidth, mHeight;
+    private float mRadius;
+
+    private Paint mOutCirclePaint;
+    private int mOutCircleColor;
+    private float mOutCircleScale = 1.0f;
+
+    private Paint mInnerCirclePaint;
+    private int mInnerCircleColor;
+    private float mInnerCircleScale = 1.0f;
+
+    private Paint mTickPaint;
+    private int mTickColor;
+    private Point[] points;
+    private Path mTickPath;
+    private boolean isTickDrawer;
+    private float offSetTickDistance;
+    private float leftTickDistance, rightTickDistance, drawTickDistance;
+
     //外圆与内圆的距离
     private float mBorderWidth;
+    //边框颜色
+    private int mBorderColor;
+    //选中颜色
+    private int mCheckColor;
+    //动画时长
+    private int mAnimDuration = 300;
 
-    private float mOutCircleScale = 1.0f, mInnerCircleScale = 1.0f;
-
-    private int mOutCircleColor, mInnerCircleColor;
 
     private boolean mChecked;
-    //对勾是否绘制
-    private boolean isTickDrawed;
-
-    //对勾三个点
-    private Point[] points;
-    private float leftTickDistance,rightTickDistance, drawTickDistance;
-    private Path mTickPath;
-    private float mPointX, mPointY;
-
-    private int mAnimDuration = 2000;
-    private int mCheckColor = Color.RED;
-    private int mTickColor = Color.WHITE;
 
     public CheckBoxView(Context context) {
         this(context, null);
@@ -63,20 +84,50 @@ public class CheckBoxView extends View implements Checkable {
 
         if (attrs != null) {
             TypedArray array = context.obtainStyledAttributes(attrs, R.styleable.CheckBoxView);
+
+            int temp;
+
+            //对勾颜色
+            mTickColor = array.getColor(R.styleable.CheckBoxView_tick_color, Color.WHITE);
+            temp = array.getResourceId(R.styleable.CheckBoxView_tick_color, 0);
+            if (temp != 0) {
+                mTickColor = ContextCompat.getColor(context, temp);
+            }
+
+            //内圆颜色
+            mInnerCircleColor = array.getColor(R.styleable.CheckBoxView_inner_color, DEFAULT_INNER_CIRCLE_COLOR);
+            temp = array.getResourceId(R.styleable.CheckBoxView_inner_color, 0);
+            if (temp != 0) {
+                mInnerCircleColor = ContextCompat.getColor(context, temp);
+            }
+
+            //边框颜色
+            mBorderColor = array.getColor(R.styleable.CheckBoxView_border_color, DEFAULT_OUT_CIRCLE_COLOR);
+            temp = array.getResourceId(R.styleable.CheckBoxView_border_color, 0);
+            if (temp != 0) {
+                mBorderColor = ContextCompat.getColor(context, temp);
+            }
+
+            //勾选颜色
+            mCheckColor = array.getColor(R.styleable.CheckBoxView_check_color, DEFAULT_CHECK_COLOR);
+            temp = array.getResourceId(R.styleable.CheckBoxView_check_color, 0);
+            if (temp != 0) {
+                mCheckColor = ContextCompat.getColor(context, temp);
+            }
+            //动画时长
+            mAnimDuration = array.getColor(R.styleable.CheckBoxView_anim_duration, mAnimDuration);
             array.recycle();
         }
 
         mOutCirclePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         mOutCirclePaint.setStyle(Paint.Style.FILL);
-        mOutCircleColor = DEFAULT_OUT_CIRCLE_COLOR;
+        mOutCircleColor = mBorderColor;
 
         mInnerCirclePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         mInnerCirclePaint.setStyle(Paint.Style.FILL);
-        mInnerCircleColor = DEFAULT_INNER_CIRCLE_COLOR;
 
         mTickPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         mTickPaint.setStyle(Paint.Style.STROKE);
-        mTickPaint.setStrokeWidth(12);
         mTickPaint.setStrokeCap(Paint.Cap.ROUND);
         mTickPaint.setColor(mTickColor);
 
@@ -92,7 +143,7 @@ public class CheckBoxView extends View implements Checkable {
             @Override
             public void onClick(View v) {
                 toggle();
-                isTickDrawed = false;
+                isTickDrawer = false;
                 if (isChecked()) {
                     startCheckAnim();
                 } else {
@@ -104,25 +155,25 @@ public class CheckBoxView extends View implements Checkable {
 
     }
 
+
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
 
-        mWidth = w;
-        mHeight = h;
-        mRadius = w / 2f;
+        mWidth = w - getPaddingStart() - getPaddingEnd();
+        mHeight = h - getPaddingTop() - getPaddingBottom();
+        mRadius = mWidth / 2f;
 
-        mBorderWidth = 10;
+        mBorderWidth = mWidth * 2 / 44f;
+        float mTickPathStroke = mWidth * 4 / 44f;
+        mTickPaint.setStrokeWidth(mTickPathStroke);
 
-        points[0].set(
-                (int) (4.1f * mWidth / 24), (int) (12.7f * mHeight / 24)
-        );
-        points[1].set(
-                9 * mWidth / 24, 19 * mHeight / 24
-        );
-        points[2].set(
-                (int) (20.3f * mWidth / 24), (int) (6.3f * mHeight / 24)
-        );
+        offSetTickDistance = (float) mWidth / DEFAULT_MIN_WIDTH_HEIGHT < DEFAULT_OFFSET_LENGTH ?
+                DEFAULT_INNER_CIRCLE_COLOR : (float) mWidth / DEFAULT_MIN_WIDTH_HEIGHT;
+
+        points[0].set(10 * mWidth / 44, 25 * mHeight / 44);
+        points[1].set(19 * mWidth / 44, 14 * mHeight / 44);
+        points[2].set(35 * mWidth / 44, 31 * mHeight / 44);
 
         leftTickDistance = (float) Math.sqrt(
                 Math.pow(points[1].x - points[0].x, 2) +
@@ -137,9 +188,14 @@ public class CheckBoxView extends View implements Checkable {
 
     @Override
     protected void onDraw(Canvas canvas) {
+        canvas.save();
+        canvas.translate(getPaddingStart(), getPaddingTop());
+
         drawOutCircle(canvas);
         drawInnerCircle(canvas);
         drawTick(canvas);
+
+        canvas.restore();
     }
 
     private void drawOutCircle(Canvas canvas) {
@@ -163,14 +219,20 @@ public class CheckBoxView extends View implements Checkable {
     }
 
     private void drawTick(Canvas canvas) {
-        if (!isTickDrawed && isChecked()) {
+        if (isTickDrawer && isChecked()) {
+
+            canvas.save();
+            canvas.translate(0, mHeight);
+            canvas.scale(1, -1);
 
             mTickPath.reset();
 
+            float mPointX;
+            float mPointY;
             if (drawTickDistance < leftTickDistance) {
                 //画左边勾勾
 
-                drawTickDistance += DEFAULT_OFFSET_LENGTH;
+                drawTickDistance += offSetTickDistance;
 
                 mPointX = points[0].x + (points[1].x - points[0].x) * drawTickDistance / leftTickDistance;
                 mPointY = points[0].y + (points[1].y - points[0].y) * drawTickDistance / leftTickDistance;
@@ -178,11 +240,11 @@ public class CheckBoxView extends View implements Checkable {
                 mTickPath.moveTo(points[0].x, points[0].y);
                 mTickPath.moveTo(mPointX, mPointY);
 
-            }else if (drawTickDistance < leftTickDistance + rightTickDistance){
+            } else if (drawTickDistance < leftTickDistance + rightTickDistance) {
 
                 //画右边勾勾
 
-                drawTickDistance += DEFAULT_OFFSET_LENGTH;
+                drawTickDistance += offSetTickDistance;
 
                 mPointX = points[1].x + (points[2].x - points[1].x) * (drawTickDistance - leftTickDistance) / rightTickDistance;
                 mPointY = points[1].y + (points[2].y - points[1].y) * (drawTickDistance - leftTickDistance) / rightTickDistance;
@@ -191,7 +253,7 @@ public class CheckBoxView extends View implements Checkable {
                 mTickPath.lineTo(points[1].x, points[1].y);
                 mTickPath.lineTo(mPointX, mPointY);
 
-            }else {
+            } else {
 
                 mTickPath.reset();
                 mTickPath.moveTo(points[0].x, points[0].y);
@@ -200,8 +262,9 @@ public class CheckBoxView extends View implements Checkable {
 
             }
 
-            canvas.drawPath(mTickPath,mTickPaint);
+            canvas.drawPath(mTickPath, mTickPaint);
 
+            canvas.restore();
 
             if (drawTickDistance < leftTickDistance + rightTickDistance) {
                 postDelayed(new Runnable() {
@@ -219,6 +282,23 @@ public class CheckBoxView extends View implements Checkable {
     @Override
     public void setChecked(boolean checked) {
         mChecked = checked;
+        reset();
+        if (mChecked) {
+            startCheckAnim();
+        }else {
+            startUnCheckAnim();
+        }
+        if (listener != null) {
+            listener.onCheckedChanged(this, mChecked);
+        }
+    }
+
+    private void reset() {
+        isTickDrawer = false;
+        drawTickDistance = 0;
+        mOutCircleScale = 1.0f;
+        mInnerCircleScale = isChecked() ? 0f : 1.0f;
+        mOutCircleColor = isChecked() ? mBorderColor : mCheckColor;
     }
 
     @Override
@@ -235,7 +315,7 @@ public class CheckBoxView extends View implements Checkable {
 
         ValueAnimator radiusAnim = ValueAnimator.ofFloat(1.0f, 0.8f, 1.0f);
         radiusAnim.setInterpolator(new LinearInterpolator());
-        radiusAnim.setDuration(mAnimDuration);
+        radiusAnim.setDuration(mAnimDuration * 3 / 2);
         radiusAnim.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
@@ -253,13 +333,25 @@ public class CheckBoxView extends View implements Checkable {
             public void onAnimationUpdate(ValueAnimator animation) {
                 mInnerCircleScale = (float) animation.getAnimatedValue();
                 mOutCircleColor = getGradientColor(
-                        DEFAULT_OUT_CIRCLE_COLOR, mCheckColor,
+                        mBorderColor, mCheckColor,
                         (Float) animation.getAnimatedValue()
                 );
                 postInvalidate();
             }
         });
         innerAnim.start();
+
+        drawTickDelay();
+    }
+
+    private void drawTickDelay() {
+        postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                isTickDrawer = true;
+                postInvalidate();
+            }
+        }, mAnimDuration);
     }
 
     private void startUnCheckAnim() {
@@ -284,7 +376,7 @@ public class CheckBoxView extends View implements Checkable {
             public void onAnimationUpdate(ValueAnimator animation) {
                 mInnerCircleScale = (float) animation.getAnimatedValue();
                 mOutCircleColor = getGradientColor(
-                        DEFAULT_OUT_CIRCLE_COLOR, mCheckColor,
+                        mBorderColor, mCheckColor,
                         (Float) animation.getAnimatedValue()
                 );
                 postInvalidate();

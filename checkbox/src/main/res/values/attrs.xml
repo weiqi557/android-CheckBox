@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <declare-styleable name="CheckBoxView" >
-
+    <declare-styleable name="CheckBoxView">
+        <attr name="check_color" format="color|reference" />
+        <attr name="border_color" format="color|reference" />
+        <attr name="tick_color" format="color|reference" />
+        <attr name="inner_color" format="color|reference" />
+        <attr name="anim_duration" format="integer" />
     </declare-styleable>
 
 </resources>
